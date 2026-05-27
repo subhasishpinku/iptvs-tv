@@ -49,6 +49,7 @@ import com.bacbpl.iptv.jetStram.presentation.viewmodel.LogoutViewModel
 import com.bacbpl.iptv.ui.activities.signupscreen.data.repository.Resource
 import com.bacbpl.iptv.jetStram.presentation.viewmodel.DeleteAccountViewModel
 import android.widget.Toast
+
 val QrCode = Icons.Default.QrCodeScanner
 val ConfirmationNumber = Icons.Default.ConfirmationNumber
 val LocationOn = Icons.Default.LocationOn
@@ -83,7 +84,7 @@ data class SubscriberInfo(
 fun AccountsSection(
     profileViewModel: ProfileViewModel = hiltViewModel(),
     logoutViewModel: LogoutViewModel = hiltViewModel(),
-    deleteAccountViewModel: DeleteAccountViewModel = hiltViewModel(), // Add this
+    deleteAccountViewModel: DeleteAccountViewModel = hiltViewModel(),
     onNavigateToLeft: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -103,14 +104,12 @@ fun AccountsSection(
     val updateProfileState by profileViewModel.updateProfileState.collectAsState()
     val isUpdating by profileViewModel.isUpdating.collectAsState()
     val subscriberDetailsState by profileViewModel.subscriberDetailsState.collectAsState()
-    var isLoadingSubscriberDetails by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Observe logout state
     val logoutState by logoutViewModel.logoutState.collectAsState()
     val isLoggingOut by logoutViewModel.isLoggingOut.collectAsState()
-
 
     var showDeleteOtpDialog by remember { mutableStateOf(false) }
 
@@ -180,46 +179,59 @@ fun AccountsSection(
             )
         )
     }
+    var apiCalled by remember { mutableStateOf(false) }
 
-    LaunchedEffect(userMobile) {
-        if (isLoggedIn && userMobile != null) {
-            val mobileNumber = userMobile!!.replace("+91", "").replace(" ", "")
+    LaunchedEffect(Unit) {
+        if (!apiCalled && isLoggedIn && userMobile != null) {
+            apiCalled = true
+            val mobileNumber = userMobile!!
+                .replace("+91", "")
+                .replace(" ", "")
             if (mobileNumber.isNotEmpty()) {
-                isLoadingSubscriberDetails = true
                 profileViewModel.getSubscriberDetails(mobileNumber, context)
             }
         }
     }
 
     LaunchedEffect(subscriberDetailsState) {
-        if (subscriberDetailsState is Resource.Success) {
-            isLoadingSubscriberDetails = false
-            val response = (subscriberDetailsState as Resource.Success).data
-            response?.let { details ->
-                val ottplayData = details.ottplayDetails?.data
-                val subscriber = details.subscriber
-
-                subscriberInfo = subscriberInfo.copy(
-                    useAltLcoCode = subscriber?.useAltLcoCode ?: "0",
-                    phone = subscriber?.mobile ?: ottplayData?.phone ?: subscriberInfo.phone,
-                    email = subscriber?.email ?: ottplayData?.email ?: subscriberInfo.email,
-                    firstName = subscriber?.firstname ?: ottplayData?.name?.split(" ")?.firstOrNull() ?: subscriberInfo.firstName,
-                    lastName = subscriber?.lastname ?: ottplayData?.name?.split(" ")?.drop(1)?.joinToString(" ") ?: subscriberInfo.lastName,
-                    address = subscriber?.address ?: subscriberInfo.address,
-                    zone = subscriber?.zone ?: ottplayData?.zone ?: subscriberInfo.zone,
-                    serviceNumber = subscriber?.serviceNumber ?: ottplayData?.serviceNo ?: subscriberInfo.serviceNumber,
-                    stateCode = subscriber?.stateCode ?: subscriberInfo.stateCode,
-                    partnerReferenceId = ottplayData?.subCode ?: subscriberInfo.partnerReferenceId
-                )
+        when (subscriberDetailsState) {
+            is Resource.Loading -> {
+                // Do nothing - no loading indicator
             }
-        } else if (subscriberDetailsState is Resource.Error) {
-            isLoadingSubscriberDetails = false
+            is Resource.Success -> {
+                val response = (subscriberDetailsState as Resource.Success).data
+                response?.let { details ->
+                    val ottplayData = details.ottplayDetails?.data
+                    val subscriber = details.subscriber
+                    subscriberInfo = subscriberInfo.copy(
+                        useAltLcoCode = subscriber?.useAltLcoCode ?: "0",
+                        phone = subscriber?.mobile ?: ottplayData?.phone ?: subscriberInfo.phone,
+                        email = subscriber?.email ?: ottplayData?.email ?: subscriberInfo.email,
+                        firstName = subscriber?.firstname ?: ottplayData?.name?.split(" ")?.firstOrNull() ?: subscriberInfo.firstName,
+                        lastName = subscriber?.lastname ?: ottplayData?.name?.split(" ")?.drop(1)?.joinToString(" ") ?: subscriberInfo.lastName,
+                        address = subscriber?.address ?: subscriberInfo.address,
+                        zone = subscriber?.zone ?: ottplayData?.zone ?: subscriberInfo.zone,
+                        serviceNumber = subscriber?.serviceNumber ?: ottplayData?.serviceNo ?: subscriberInfo.serviceNumber,
+                        stateCode = subscriber?.stateCode ?: subscriberInfo.stateCode,
+                        partnerReferenceId = ottplayData?.subCode ?: subscriberInfo.partnerReferenceId
+                    )
+                }
+            }
+            is Resource.Error -> {
+                Toast.makeText(
+                    context,
+                    (subscriberDetailsState as Resource.Error).message ?: "Failed to load profile",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            else -> {}
         }
     }
 
     LaunchedEffect(Unit) {
         UserSession.updateSession(context)
     }
+
     // Handle send OTP response
     LaunchedEffect(sendOtpState) {
         when (sendOtpState) {
@@ -246,7 +258,6 @@ fun AccountsSection(
                 deleteAccountViewModel.resetStates()
                 showDeleteOtpDialog = false
                 showDeleteDialog = false
-                // Navigate to start screen
                 val intent = Intent(context, StartScreen::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 context.startActivity(intent)
@@ -260,6 +271,7 @@ fun AccountsSection(
             else -> {}
         }
     }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = Color.Black
@@ -286,20 +298,7 @@ fun AccountsSection(
                         .background(Color.Black)
                         .padding(paddingValues)
                 ) {
-                    if (isLoadingSubscriberDetails) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = Color(0xFFE50914),
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-
+                    // Quick Stats Cards
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -328,15 +327,6 @@ fun AccountsSection(
 
                     val accountsSectionListItems = remember(userName, userEmail, userMobile, subscriberInfo) {
                         listOf(
-//                            AccountsSectionData(
-//                                title = "Delete Account",
-//                                icon = Icons.Default.Delete,
-//                                onClick = {
-//                                    showDeleteDialog = true
-//                                    deleteAccountViewModel.resetStates()
-//                                    deleteErrorMessage = null
-//                                }
-//                            ),
                             AccountsSectionData(
                                 title = "Email",
                                 value = userEmail ?: "Email not set",
@@ -347,36 +337,11 @@ fun AccountsSection(
                                 value = userMobile ?: "Mobile not set",
                                 icon = Icons.Default.Phone
                             ),
-//                            AccountsSectionData(
-//                                title = "Use Alt LCO Code",
-//                                value = if (subscriberInfo.useAltLcoCode == "1") "Yes" else "No",
-//                                icon = Icons.Default.Settings
-//                            ),
-//                            AccountsSectionData(
-//                                title = "First Name",
-//                                value = subscriberInfo.firstName.ifEmpty { "Not set" },
-//                                icon = PersonOutline
-//                            ),
-//                            AccountsSectionData(
-//                                title = "Last Name",
-//                                value = subscriberInfo.lastName.ifEmpty { "Not set" },
-//                                icon = PersonOutline
-//                            ),
                             AccountsSectionData(
                                 title = "Address",
                                 value = subscriberInfo.address.ifEmpty { "Not set" },
                                 icon = Icons.Default.Home
                             ),
-//                            AccountsSectionData(
-//                                title = "Partner Reference ID",
-//                                value = subscriberInfo.partnerReferenceId.ifEmpty { "Not set" },
-//                                icon = QrCode
-//                            ),
-//                            AccountsSectionData(
-//                                title = "Zone",
-//                                value = subscriberInfo.zone.ifEmpty { "Not set" },
-//                                icon = LocationOn
-//                            ),
                             AccountsSectionData(
                                 title = "Service Number",
                                 value = subscriberInfo.serviceNumber.ifEmpty { "Not set" },
@@ -430,19 +395,18 @@ fun AccountsSection(
                     }
 
                     LazyVerticalGrid(
+                        userScrollEnabled = true,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .padding(horizontal = childPadding.start)
                             .onPreviewKeyEvent { keyEvent ->
-                                // Handle back button to go back to left column
                                 when {
                                     keyEvent.key == Key.Back && keyEvent.type == KeyEventType.KeyUp -> {
                                         onNavigateToLeft()
                                         return@onPreviewKeyEvent true
                                     }
                                     keyEvent.key == Key.DirectionLeft && keyEvent.type == KeyEventType.KeyUp -> {
-                                        // If at first column, move focus to left sidebar
                                         if (focusedItemIndex % 3 == 0) {
                                             onNavigateToLeft()
                                             return@onPreviewKeyEvent true
@@ -458,7 +422,7 @@ fun AccountsSection(
                                 modifier = Modifier
                                     .focusRequester(if (index == 0) focusRequester else FocusRequester())
                                     .padding(4.dp),
-                                itemKey = index,  // Changed from 'key' to 'itemKey'
+                                itemKey = index,
                                 index = index,
                                 accountsSectionData = accountsSectionListItems[index],
                                 onFocusChanged = { isFocused ->
@@ -475,40 +439,6 @@ fun AccountsSection(
                 LaunchedEffect(Unit) {
                     kotlinx.coroutines.delay(100)
                     focusRequester.requestFocus()
-                }
-
-                // Show loading indicator while logging out
-                if (isLoggingOut) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.7f))
-                            .clickable(enabled = false) { },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Card(
-                            modifier = Modifier
-                                .width(200.dp)
-                                .padding(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                CircularProgressIndicator(
-                                    color = Color(0xFFE50914),
-                                    modifier = Modifier.size(40.dp)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = "Logging out...",
-                                    color = Color.White,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -527,19 +457,16 @@ fun AccountsSection(
                 )
             }
 
-            // Add the OTP dialog after the delete confirmation dialog
+            // Delete confirmation dialog
             if (showDeleteDialog) {
-                // First confirmation dialog
                 AccountsSectionDeleteDialog(
                     showDialog = showDeleteDialog,
                     onDismissRequest = {
                         showDeleteDialog = false
                         deleteAccountViewModel.resetStates()
                     },
-                    modifier = Modifier.width(428.dp),
                     onConfirm = {
                         showDeleteDialog = false
-                        // Send OTP when user confirms delete
                         val mobileNumber = userMobile?.replace("+91", "")?.replace(" ", "") ?: ""
                         val currentDeviceId = deviceId ?: UserSession.getDeviceId(context)
                         if (mobileNumber.isNotEmpty() && currentDeviceId != null) {
@@ -618,18 +545,19 @@ fun QuickStatCard(
                 color = Color.White,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = title,
                 color = Color.White.copy(alpha = 0.5f),
                 fontSize = 9.sp,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
-
 
 @Composable
 fun SubscriberInfoDialog(
@@ -877,4 +805,311 @@ fun SubscriberInfoField(
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AccountsSelectionItem(
+    modifier: Modifier = Modifier,
+    itemKey: Int,
+    index: Int,
+    accountsSectionData: AccountsSectionData,
+    onFocusChanged: (Boolean) -> Unit = {}
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                onFocusChanged(it.isFocused)
+            }
+            .focusable(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF2A2A2A) else Color(0xFF1A1A1A),
+        ),
+        interactionSource = interactionSource,
+        onClick = accountsSectionData.onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                accountsSectionData.icon?.let {
+                    Icon(
+                        imageVector = it,
+                        contentDescription = accountsSectionData.title,
+                        tint = if (isFocused) Color(0xFFE50914) else Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = accountsSectionData.title,
+                        color = if (isFocused) Color(0xFFE50914) else Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    accountsSectionData.value?.let {
+                        Text(
+                            text = it,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            if (accountsSectionData.title == "Change Password" ||
+                accountsSectionData.title == "Edit Profile") {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Navigate",
+                    tint = if (isFocused) Color(0xFFE50914) else Color.Gray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AccountsSectionDeleteDialog(
+    showDialog: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = {
+                Text(
+                    text = "Delete Account",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Are you sure you want to delete your account?",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "This action cannot be undone. All your data will be permanently removed.",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFE50914)
+                    )
+                ) {
+                    Text("Delete", color = Color(0xFFE50914), fontSize = 14.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = onDismissRequest,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Cancel", color = Color.White, fontSize = 14.sp)
+                }
+            },
+            containerColor = Color(0xFF1A1A1A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+}
+
+@Composable
+fun DeleteAccountOtpDialog(
+    mobile: String,
+    generatedOtp: String?,
+    isSendingOtp: Boolean,
+    isDeleting: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSendOtp: () -> Unit,
+    onVerifyAndDelete: (String) -> Unit
+) {
+    var otpValue by remember { mutableStateOf("") }
+    var isOtpSent by remember { mutableStateOf(false) }
+    var countdown by remember { mutableStateOf(0) }
+
+    // Auto-send OTP when dialog opens
+    LaunchedEffect(Unit) {
+        if (!isOtpSent && !isSendingOtp) {
+            onSendOtp()
+            isOtpSent = true
+            countdown = 60
+        }
+    }
+
+    // Countdown timer
+    LaunchedEffect(countdown) {
+        if (countdown > 0) {
+            kotlinx.coroutines.delay(1000)
+            countdown--
+        }
+    }
+
+    // Auto-fill OTP if generated
+    LaunchedEffect(generatedOtp) {
+        if (!generatedOtp.isNullOrEmpty() && otpValue.isEmpty()) {
+            otpValue = generatedOtp
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = {
+            if (!isDeleting) onDismiss()
+        },
+        title = {
+            Text(
+                text = "Verify Account Deletion",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(
+                    text = "An OTP has been sent to $mobile",
+                    color = Color.White,
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = otpValue,
+                    onValueChange = { if (it.length <= 6) otpValue = it },
+                    label = { Text("Enter OTP", color = Color.White.copy(alpha = 0.7f)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFE50914),
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedLabelColor = Color(0xFFE50914),
+                        unfocusedLabelColor = Color.White.copy(alpha = 0.7f)
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    enabled = !isDeleting
+                )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFE50914),
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (countdown > 0) {
+                        Text(
+                            text = "Resend OTP in ${countdown}s",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
+                    } else {
+                        TextButton(
+                            onClick = {
+                                if (!isSendingOtp) {
+                                    onSendOtp()
+                                    countdown = 60
+                                }
+                            },
+                            enabled = !isSendingOtp && !isDeleting
+                        ) {
+                            if (isSendingOtp) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFFE50914)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text(
+                                text = "Resend OTP",
+                                color = Color(0xFFE50914),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onVerifyAndDelete(otpValue) },
+                enabled = otpValue.length == 6 && !isDeleting
+            ) {
+                if (isDeleting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color(0xFFE50914)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Deleting...", color = Color(0xFFE50914))
+                } else {
+                    Text("Verify & Delete", color = Color(0xFFE50914))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isDeleting
+            ) {
+                Text("Cancel", color = Color.White)
+            }
+        },
+        containerColor = Color(0xFF1A1A1A),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
 }

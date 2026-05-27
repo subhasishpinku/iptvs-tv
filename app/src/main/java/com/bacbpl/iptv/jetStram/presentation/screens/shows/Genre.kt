@@ -102,9 +102,9 @@ fun GenreContent(
         Spacer(modifier = Modifier.height(5.dp))
 
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            columns = GridCells.Fixed(6),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             items(genres) { genre ->
@@ -127,25 +127,25 @@ fun GenreItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
-            .scale(if (isFocused) 1.06f else 1f)
+            .height(100.dp)  // Reduced from 140dp to 100dp
+            .scale(if (isFocused) 1.04f else 1f)  // Reduced scale effect
             .onFocusChanged {
                 isFocused = it.isFocused
             }
             .focusable(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(12.dp),  // Reduced from 18dp to 12dp
         colors = CardDefaults.cardColors(
             containerColor = if (isFocused) Color(0xFFE50914) else Color(0xFF1A2230)
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isFocused) 12.dp else 4.dp
+            defaultElevation = if (isFocused) 8.dp else 3.dp  // Reduced elevation
         ),
         onClick = onClick
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(14.dp),
+                .padding(10.dp),  // Reduced from 14dp to 10dp
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -153,15 +153,15 @@ fun GenreItem(
                 imageVector = Icons.Default.LocalMovies,
                 contentDescription = genre.name,
                 tint = Color.White,
-                modifier = Modifier.size(42.dp)
+                modifier = Modifier.size(28.dp)  // Reduced from 42dp to 28dp
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))  // Reduced from 12dp to 8dp
 
             Text(
                 text = genre.name,
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 14.sp,  // Reduced from 18sp to 14sp
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -169,7 +169,7 @@ fun GenreItem(
                 Text(
                     text = "${genre.categories.size} categories",
                     color = Color.Gray,
-                    fontSize = 12.sp
+                    fontSize = 10.sp  // Reduced from 12sp to 10sp
                 )
             }
         }
@@ -184,7 +184,7 @@ fun LoadingScreen() {
     ) {
         CircularProgressIndicator(
             color = Color(0xFFE50914),
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(40.dp)  // Reduced from 48dp to 40dp
         )
     }
 }
@@ -203,18 +203,18 @@ fun ErrorScreen(
             imageVector = Icons.Default.Error,
             contentDescription = "Error",
             tint = Color(0xFFE50914),
-            modifier = Modifier.size(64.dp)
+            modifier = Modifier.size(48.dp)  // Reduced from 64dp to 48dp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))  // Reduced from 16dp to 12dp
 
         Text(
             text = message,
             color = Color.White,
-            fontSize = 16.sp
+            fontSize = 14.sp  // Reduced from 16sp to 14sp
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))  // Reduced from 24dp to 16dp
 
         Button(
             onClick = onRetry,
@@ -222,7 +222,10 @@ fun ErrorScreen(
                 containerColor = Color(0xFFE50914)
             )
         ) {
-            Text("Retry")
+            Text(
+                text = "Retry",
+                fontSize = 12.sp  // Added smaller font for button text
+            )
         }
     }
 }

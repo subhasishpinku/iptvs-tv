@@ -258,6 +258,7 @@ fun TvAutoPlayerScreen(
         delay(100)
         focusRequester.requestFocus()
     }
+// এই অংশটি Replace করুন যেখানে DirectionDown হ্যান্ডল করা হয়েছে
 
     Box(
         modifier = Modifier
@@ -267,6 +268,7 @@ fun TvAutoPlayerScreen(
             .focusable()
             .onPreviewKeyEvent { keyEvent ->
                 when {
+                    // UP key - Show menu bar
                     keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionUp -> {
                         if (!showMenuBar && availableMainCategories.isNotEmpty()) {
                             showMenuBar = true
@@ -279,7 +281,10 @@ fun TvAutoPlayerScreen(
                             false
                         }
                     }
-                    keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionDown -> {
+
+                    // OK/Enter key - Show channel grid (NEW)
+                    keyEvent.type == KeyEventType.KeyDown &&
+                            (keyEvent.key == Key.Enter || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER) -> {
                         if (selectedCategory != null && !showGrid) {
                             showGrid = true
                             coroutineScope.launch {
@@ -291,6 +296,8 @@ fun TvAutoPlayerScreen(
                             false
                         }
                     }
+
+                    // BACK key handling
                     keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Back -> {
                         handleBackPress()
                         true
@@ -304,6 +311,23 @@ fun TvAutoPlayerScreen(
                         handleBackPress()
                         true
                     }
+
+                    // OK/Enter key alternative handling
+                    keyEvent.type == KeyEventType.KeyDown &&
+                            (keyEvent.key == Key.Enter || keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER) -> {
+                        if (selectedCategory != null && !showGrid) {
+                            showGrid = true
+                            coroutineScope.launch {
+                                delay(100)
+                                gridFocusRequester.requestFocus()
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
+
+                    // Channel Up/Down buttons
                     keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_CHANNEL_UP -> {
                         if (currentIndex < filteredChannels.size - 1) {
                             currentIndex++
@@ -328,6 +352,8 @@ fun TvAutoPlayerScreen(
                         }
                         true
                     }
+
+                    // Left/Right navigation in menu
                     selectedCategory != null && !showGrid &&
                             keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight -> {
                         val currentCatIndex = availableMainCategories.indexOfFirst { it == selectedCategory }
@@ -350,6 +376,8 @@ fun TvAutoPlayerScreen(
                         }
                         true
                     }
+
+                    // Left/Right navigation for channel changing (when no menu/grid)
                     (selectedCategory == null && !showGrid && !showMenuBar) &&
                             keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight -> {
                         if (currentIndex < filteredChannels.size - 1) {
@@ -369,7 +397,120 @@ fun TvAutoPlayerScreen(
                     else -> false
                 }
             }
-    ) {
+    )
+//    Box(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .background(Color.Black)
+//            .focusRequester(focusRequester)
+//            .focusable()
+//            .onPreviewKeyEvent { keyEvent ->
+//                when {
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionUp -> {
+//                        if (!showMenuBar && availableMainCategories.isNotEmpty()) {
+//                            showMenuBar = true
+//                            coroutineScope.launch {
+//                                delay(100)
+//                                menuItemsFocusRequesters.getOrNull(menuFocusedIndex)?.requestFocus()
+//                            }
+//                            true
+//                        } else {
+//                            false
+//                        }
+//                    }
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionDown -> {
+//                        if (selectedCategory != null && !showGrid) {
+//                            showGrid = true
+//                            coroutineScope.launch {
+//                                delay(100)
+//                                gridFocusRequester.requestFocus()
+//                            }
+//                            true
+//                        } else {
+//                            false
+//                        }
+//                    }
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Back -> {
+//                        handleBackPress()
+//                        true
+//                    }
+//                    else -> false
+//                }
+//            }
+//            .onKeyEvent { keyEvent ->
+//                when {
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Back -> {
+//                        handleBackPress()
+//                        true
+//                    }
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_CHANNEL_UP -> {
+//                        if (currentIndex < filteredChannels.size - 1) {
+//                            currentIndex++
+//                            currentChannel = filteredChannels[currentIndex]
+//                            if (showMenuBar) {
+//                                showMenuBar = false
+//                                selectedCategory = null
+//                                showGrid = false
+//                            }
+//                        }
+//                        true
+//                    }
+//                    keyEvent.type == KeyEventType.KeyDown && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+//                        if (currentIndex > 0) {
+//                            currentIndex--
+//                            currentChannel = filteredChannels[currentIndex]
+//                            if (showMenuBar) {
+//                                showMenuBar = false
+//                                selectedCategory = null
+//                                showGrid = false
+//                            }
+//                        }
+//                        true
+//                    }
+//                    selectedCategory != null && !showGrid &&
+//                            keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight -> {
+//                        val currentCatIndex = availableMainCategories.indexOfFirst { it == selectedCategory }
+//                        if (currentCatIndex < availableMainCategories.size - 1) {
+//                            val newIndex = currentCatIndex + 1
+//                            selectedCategory = availableMainCategories[newIndex]
+//                            menuFocusedIndex = newIndex
+//                            menuItemsFocusRequesters.getOrNull(newIndex)?.requestFocus()
+//                        }
+//                        true
+//                    }
+//                    selectedCategory != null && !showGrid &&
+//                            keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionLeft -> {
+//                        val currentCatIndex = availableMainCategories.indexOfFirst { it == selectedCategory }
+//                        if (currentCatIndex > 0) {
+//                            val newIndex = currentCatIndex - 1
+//                            selectedCategory = availableMainCategories[newIndex]
+//                            menuFocusedIndex = newIndex
+//                            menuItemsFocusRequesters.getOrNull(newIndex)?.requestFocus()
+//                        }
+//                        true
+//                    }
+//                    (selectedCategory == null && !showGrid && !showMenuBar) &&
+//                            keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight -> {
+//                        if (currentIndex < filteredChannels.size - 1) {
+//                            currentIndex++
+//                            currentChannel = filteredChannels[currentIndex]
+//                        }
+//                        true
+//                    }
+//                    (selectedCategory == null && !showGrid && !showMenuBar) &&
+//                            keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionLeft -> {
+//                        if (currentIndex > 0) {
+//                            currentIndex--
+//                            currentChannel = filteredChannels[currentIndex]
+//                        }
+//                        true
+//                    }
+//                    else -> false
+//                }
+//            }
+//    )
+
+    {
         AndroidView(
             factory = { ctx ->
                 StyledPlayerView(ctx).apply {

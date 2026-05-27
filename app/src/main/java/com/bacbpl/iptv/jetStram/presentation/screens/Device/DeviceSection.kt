@@ -75,7 +75,7 @@ fun DeviceSection(
                 imageVector = Icons.Default.Devices,
                 contentDescription = "Device Info",
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(24.dp) // 32 -> 24
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
@@ -140,9 +140,9 @@ fun DeviceSection(
         } else {
             // Grid with responsive columns
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 280.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                columns = GridCells.Adaptive(minSize = 220.dp), // 280 -> 220
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(deviceInfo, key = { it.label }) { item ->
@@ -210,28 +210,29 @@ fun AnimatedDeviceCard(
         colors = CardDefaults.colors(
             containerColor = containerColor
         ),
-        shape = CardDefaults.shape(shape = RoundedCornerShape(16.dp))
+        shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)) // 16 -> 12
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(10.dp), // 16 -> 10
+            verticalArrangement = Arrangement.spacedBy(8.dp) // 12 -> 8
         ) {
-            // Header with icon and label
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
                     imageVector = item.category.icon,
                     contentDescription = null,
                     tint = if (isFocused) Color.White else baseContentColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp) // 20 -> 16
                 )
+
                 Text(
                     text = item.label,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall, // labelMedium -> labelSmall
                     fontWeight = FontWeight.Medium,
                     color = if (isFocused) Color.White else baseContentColor,
                     maxLines = 1,
@@ -239,22 +240,24 @@ fun AnimatedDeviceCard(
                 )
             }
 
-            // Value section
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = item.value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium, // bodyLarge -> bodyMedium
+                    fontWeight = FontWeight.SemiBold,
                     color = if (isFocused) Color.White else MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
 
-                if (item.value != "Not Available" && !item.value.startsWith("Restricted") && !item.value.startsWith("UID:")) {
+                if (item.value != "Not Available" &&
+                    !item.value.startsWith("Restricted") &&
+                    !item.value.startsWith("UID:")
+                ) {
                     Icon(
                         imageVector = Icons.Default.ContentCopy,
                         contentDescription = "Copy",
@@ -263,7 +266,7 @@ fun AnimatedDeviceCard(
                         } else {
                             baseContentColor.copy(alpha = 0.5f)
                         },
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp) // 16 -> 14
                     )
                 }
             }

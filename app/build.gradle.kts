@@ -25,8 +25,8 @@ android {
         applicationId = "com.bacbpl.iptv"
         minSdk = 23
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.1.4"
+        versionCode = 25
+        versionName = "1.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "PARTNER_API_URL", "\"https://partner.app.com\"")
         multiDexEnabled = true

@@ -1004,7 +1004,7 @@ object SideBarScreens {
     const val ACCOUNTS = "accounts"
     const val WALLET = "wallet"
     const val DEVICE = "device"
-    const val ABOUT = "about"
+//    const val ABOUT = "about"
     const val LANGUAGE = "language"
     const val HELP_SUPPORT = "help_support"
 
@@ -1048,7 +1048,7 @@ fun TVHomeScreen() {
         MenuItem("Accounts", Icons.Default.Person, SideBarScreens.ACCOUNTS),
         MenuItem("Payment", Icons.Outlined.AccountBalanceWallet, SideBarScreens.WALLET),
         MenuItem("Device Info", Icons.Outlined.Devices, SideBarScreens.DEVICE),
-        MenuItem("About", Icons.Default.Info, SideBarScreens.ABOUT),
+//        MenuItem("About", Icons.Default.Info, SideBarScreens.ABOUT),
         MenuItem("Language", Icons.Default.Translate, SideBarScreens.LANGUAGE)
     )
 
@@ -1117,7 +1117,7 @@ fun TVHomeScreen() {
                 SideBarScreens.ACCOUNTS -> "Accounts"
                 SideBarScreens.WALLET -> "Payment"
                 SideBarScreens.DEVICE -> "Device Info"
-                SideBarScreens.ABOUT -> "About"
+//                SideBarScreens.ABOUT -> "About"
                 SideBarScreens.LANGUAGE -> "Language"
                 SideBarScreens.HELP_SUPPORT -> "Help & Support"
                 else -> "BACB IPTV"
@@ -1155,7 +1155,34 @@ fun SideBarNavHost(
     onLanguageChange: (Int) -> Unit
 ) {
     val context = LocalContext.current
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var showContactDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) } // যোগ করুন
 
+    // Show Privacy Policy Dialog when needed
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(
+            onDismiss = { showPrivacyPolicy = false }
+        )
+    }
+
+    // Show Contact Us Dialog when needed
+    if (showContactDialog) {
+        ContactUsDialog(
+            onDismiss = { showContactDialog = false },
+            onSubmit = { name, email, subject, message ->
+                android.util.Log.d("ContactUs", "Name: $name, Email: $email, Subject: $subject, Message: $message")
+                showContactDialog = false
+            }
+        )
+    }
+
+    // Show About Dialog when needed
+    if (showAboutDialog) {
+        AboutDialog(
+            onDismiss = { showAboutDialog = false }
+        )
+    }
     NavHost(
         navController = navController,
         startDestination = SideBarScreens.LIVE
@@ -1200,10 +1227,10 @@ fun SideBarNavHost(
             )
         }
 
-        // About Screen
-        composable(route = SideBarScreens.ABOUT) {
-            AboutSection()
-        }
+//        // About Screen
+//        composable(route = SideBarScreens.ABOUT) {
+//            AboutSection()
+//        }
 
         // Language Screen
         composable(route = SideBarScreens.LANGUAGE) {
@@ -1216,9 +1243,12 @@ fun SideBarNavHost(
         // Help & Support Screen
         composable(route = SideBarScreens.HELP_SUPPORT) {
             HelpAndSupportSection(
-                onNavigateToPrivacyPolicy = {},
-                onNavigateToFAQ = {},
-                onNavigateToContact = {}
+                onNavigateToPrivacyPolicy = { showPrivacyPolicy = true },
+                onNavigateToFAQ = {
+                    android.util.Log.d("SideBarHome", "Navigate to FAQ")
+                },
+                onNavigateToContact = { showContactDialog = true },
+                onNavigateToAbout = { showAboutDialog = true } // ADD THIS
             )
         }
 
