@@ -214,4 +214,28 @@ support@bacbpl.in</string>
     <string name="send_message">বার্তা পাঠান</string>
     <string name="profile_dashboard">Dashboard</string>
 
+
+        <!-- Menu Strings - Bengali -->
+        <string name="menu_live">লাইভ টিভি</string>
+        <string name="menu_ott">ওটিটি</string>
+        <string name="menu_genre">ধরণ</string>
+        <string name="menu_accounts">অ্যাকাউন্ট</string>
+        <string name="menu_payment">পেমেন্ট</string>
+        <string name="menu_settings">সেটিংস</string>
+        <string name="menu_help_support">সাহায্য ও সমর্থন</string>
+        <string name="menu_logout">লগআউট</string>
+
+        <!-- Screen Titles - Bengali -->
+        <string name="screen_live">লাইভ টিভি</string>
+        <string name="screen_ott">ওটিটি</string>
+        <string name="screen_genre">ধরণ</string>
+        <string name="screen_accounts">অ্যাকাউন্ট</string>
+        <string name="screen_wallet">পেমেন্ট</string>
+        <string name="screen_help_support">সাহায্য ও সমর্থন</string>
+
+    <!-- Help & Support Section -->
+    <string name="help_about_us">আমাদের সম্পর্কে</string>
+    <string name="help_device_info">ডিভাইস তথ্য</string>
+    <string name="help_language">ভাষা</string>
+    <string name="help_faq">প্রশ্নোত্তর</string>
 </resources>

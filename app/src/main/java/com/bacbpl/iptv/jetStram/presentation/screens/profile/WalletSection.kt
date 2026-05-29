@@ -1,20 +1,19 @@
 package com.bacbpl.iptv.jetStram.presentation.screens.profile
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -26,8 +25,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -37,7 +38,17 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.bacbpl.iptv.R
+import com.caverock.androidsvg.SVG
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun WalletSection(
@@ -47,7 +58,6 @@ fun WalletSection(
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Background Image
         Image(
             painter = painterResource(id = R.drawable.bg_image),
             contentDescription = null,
@@ -55,7 +65,6 @@ fun WalletSection(
             contentScale = ContentScale.Crop
         )
 
-        // Main Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -76,7 +85,6 @@ fun WalletSection(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                // Mobile QR Scan Section
                 Card(
                     modifier = Modifier
                         .width(250.dp)
@@ -100,7 +108,7 @@ fun WalletSection(
                         )
                     }
                 }
-                // Payment Screen Section
+
                 Card(
                     modifier = Modifier
                         .width(550.dp)
@@ -114,24 +122,6 @@ fun WalletSection(
                     PaymentScreen()
                 }
             }
-
-//            Spacer(modifier = Modifier.height(30.dp))
-//
-//            Row(
-//                verticalAlignment = Alignment.CenterVertically
-//            ) {
-//                Text(
-//                    text = "Enable Subtitles",
-//                    color = Color.White,
-//                    fontSize = 16.sp
-//                )
-//                Spacer(modifier = Modifier.width(10.dp))
-//
-//                Switch(
-//                    checked = isSubtitlesChecked,
-//                    onCheckedChange = onSubtitleCheckChange
-//                )
-//            }
         }
     }
 }
@@ -159,7 +149,6 @@ fun PaymentScreen() {
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Title
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -175,21 +164,12 @@ fun PaymentScreen() {
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // Payment Method Toggle
             Row(
                 modifier = Modifier
                     .background(Color(0xFF3A2A2A), RoundedCornerShape(30))
                     .padding(4.dp)
                     .align(Alignment.CenterHorizontally)
             ) {
-//                PaymentTab(
-//                    title = "💳 Card",
-//                    selected = selectedTab == "Credit Card",
-//                    onSelected = {
-//                        selectedTab = "Credit Card"
-//                    }
-//                )
-
                 PaymentTab(
                     title = "📱 QR Code",
                     selected = selectedTab == "QR Code",
@@ -201,16 +181,12 @@ fun PaymentScreen() {
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Payment Content based on selected tab
             when (selectedTab) {
                 "QR Code" -> QRCodePaymentContent()
-//               "Credit Card" -> CreditCardContent()
-
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Footer
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -264,277 +240,13 @@ fun PaymentTab(title: String, selected: Boolean, onSelected: () -> Unit) {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun CreditCardContent() {
-    // State variables for card details
-    var cardNumber by remember { mutableStateOf("") }
-    var expiryDate by remember { mutableStateOf("") }
-    var cvv by remember { mutableStateOf("") }
-    var cardHolderName by remember { mutableStateOf("") }
-
-    // Focus states
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-
-    // Focus requesters for each field
-    val cardNumberFocus = remember { FocusRequester() }
-    val expiryFocus = remember { FocusRequester() }
-    val cvvFocus = remember { FocusRequester() }
-    val nameFocus = remember { FocusRequester() }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Custom Credit Card Display (shows entered values)
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.Transparent
-            )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                Color(0xFF434343),
-                                Color(0xFF1A1A1A)
-                            )
-                        ),
-                        RoundedCornerShape(16.dp)
-                    )
-                    .padding(16.dp)
-            ) {
-                // Card Chip
-//                Box(
-//                    modifier = Modifier
-//                        .size(40.dp)
-//                        .background(Color(0xFFFFD700), RoundedCornerShape(4.dp))
-//                        .align(Alignment.TopStart)
-//                )
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Color.Transparent)
-                        .align(Alignment.TopStart)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_chip),
-                        contentDescription = "Card Chip",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                // Card Type
-                Text(
-                    text = "CREDIT",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    modifier = Modifier.align(Alignment.TopEnd)
-                )
-
-                // Card Number - shows entered or masked
-                Text(
-                    text = if (cardNumber.isNotEmpty()) cardNumber else "****  ****  ****  ****",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-
-                // Card Holder
-                Column(
-                    modifier = Modifier.align(Alignment.BottomStart)
-                ) {
-                    Text(
-                        text = "CARD HOLDER",
-                        color = Color.Gray,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = if (cardHolderName.isNotEmpty()) cardHolderName.uppercase() else "JOHN DOE",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Expiry
-                Column(
-                    modifier = Modifier.align(Alignment.BottomEnd)
-                ) {
-                    Text(
-                        text = "EXPIRES",
-                        color = Color.Gray,
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = if (expiryDate.isNotEmpty()) expiryDate else "12/25",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Card Number Field (Editable)
-        CustomTextField(
-            value = cardNumber,
-            onValueChange = {
-                val cleaned = it.replace(" ", "").take(16)
-                val formatted = cleaned.chunked(4).joinToString(" ")
-                cardNumber = formatted
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .focusRequester(cardNumberFocus)
-                .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Tab) {
-                        if (keyEvent.isShiftPressed) {
-                            nameFocus.requestFocus()
-                        } else {
-                            expiryFocus.requestFocus()
-                        }
-                        true
-                    } else false
-                },
-            placeholder = "1234 5678 9012 3456",
-            keyboardType = KeyboardType.Number
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Expiry Date and CVV Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Expiry Date (Editable)
-            CustomTextField(
-                value = expiryDate,
-                onValueChange = {
-                    var cleaned = it.replace("/", "").take(4)
-                    if (cleaned.length >= 2) {
-                        cleaned = cleaned.substring(0, 2) + "/" + cleaned.substring(2)
-                    }
-                    expiryDate = cleaned
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .focusRequester(expiryFocus)
-                    .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Tab) {
-                            if (keyEvent.isShiftPressed) {
-                                cardNumberFocus.requestFocus()
-                            } else {
-                                cvvFocus.requestFocus()
-                            }
-                            true
-                        } else false
-                    },
-                placeholder = "MM/YY",
-                keyboardType = KeyboardType.Number
-            )
-
-            // CVV (Editable) - Fixed the visual transformation
-            CustomTextField(
-                value = cvv,
-                onValueChange = { cvv = it.take(3) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .focusRequester(cvvFocus)
-                    .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Tab) {
-                            if (keyEvent.isShiftPressed) {
-                                expiryFocus.requestFocus()
-                            } else {
-                                nameFocus.requestFocus()
-                            }
-                            true
-                        } else false
-                    },
-                placeholder = "CVV",
-                keyboardType = KeyboardType.Number,
-                isPassword = true // Added password mode for CVV
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Card Holder Name (Editable)
-        CustomTextField(
-            value = cardHolderName,
-            onValueChange = { cardHolderName = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .focusRequester(nameFocus)
-                .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Tab) {
-                        if (keyEvent.isShiftPressed) {
-                            cvvFocus.requestFocus()
-                        } else {
-                            cardNumberFocus.requestFocus()
-                        }
-                        true
-                    } else false
-                },
-            placeholder = "Card Holder Name",
-            keyboardType = KeyboardType.Text
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Pay Button
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Red,
-                            Color(0xFFFF6B6B)
-                        )
-                    ),
-                    RoundedCornerShape(25.dp)
-                )
-                .clickable {
-                    // Payment processing logic here
-                }
-                .focusable(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Pay $199.99",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
 fun CustomTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
-    isPassword: Boolean = false // Added password parameter
+    isPassword: Boolean = false
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -582,7 +294,6 @@ fun CustomTextField(
             }
         ),
         visualTransformation = if (isPassword) {
-            // Simple password transformation - shows dots
             VisualTransformation { text ->
                 androidx.compose.ui.text.input.TransformedText(
                     androidx.compose.ui.text.AnnotatedString("•".repeat(text.text.length)),
@@ -614,14 +325,73 @@ fun CustomTextField(
 
 @Composable
 fun QRCodePaymentContent() {
+    val context = LocalContext.current
+    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Fetch QR code from API with proper coroutine
+    LaunchedEffect(Unit) {
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                println("=== Starting QR Code API Call ===")
+                val result = withContext(Dispatchers.IO) {
+                    fetchQRCodeFromApi()
+                }
+                println("API Result: ${result?.take(200)}")
+
+                if (result != null) {
+                    when {
+                        result.trim().startsWith("<svg") || result.trim().startsWith("<?xml") -> {
+                            println("SVG data received, converting to bitmap...")
+                            qrBitmap = withContext(Dispatchers.Default) {
+                                convertSvgToBitmap(result, 400, 400)
+                            }
+                            if (qrBitmap != null) {
+                                println("SVG converted to bitmap successfully")
+                                errorMessage = null
+                            } else {
+                                errorMessage = "Failed to convert SVG"
+                            }
+                        }
+                        result.startsWith("http") -> {
+                            println("QR Code URL: $result")
+                            errorMessage = null
+                        }
+                        else -> {
+                            errorMessage = "Invalid QR data format"
+                        }
+                    }
+                } else {
+                    errorMessage = "QR code not available"
+                    println("QR code not available from API")
+                }
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Failed to load QR code"
+                println("Error loading QR: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    val hasLocalQr = try {
+        R.drawable.qr_code
+        true
+    } catch (e: Exception) {
+        false
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Large QR Code Display
         Card(
             modifier = Modifier
-                .size(220.dp)
+                .size(280.dp)
                 .shadow(10.dp, RoundedCornerShape(20.dp)),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
@@ -634,17 +404,108 @@ fun QRCodePaymentContent() {
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.qr_code),
-                    contentDescription = "Payment QR Code",
-                    modifier = Modifier.fillMaxSize()
-                )
+                when {
+                    isLoading -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFFE50914),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Loading QR Code...",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    errorMessage != null && qrBitmap == null -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Error,
+                                contentDescription = "Error",
+                                tint = Color.Red,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = errorMessage ?: "Failed to load QR",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            if (hasLocalQr) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        isLoading = true
+                                        errorMessage = null
+                                        coroutineScope.launch {
+                                            try {
+                                                val result = withContext(Dispatchers.IO) {
+                                                    fetchQRCodeFromApi()
+                                                }
+                                                if (result != null) {
+                                                    if (result.trim().startsWith("<svg") || result.trim().startsWith("<?xml")) {
+                                                        qrBitmap = withContext(Dispatchers.Default) {
+                                                            convertSvgToBitmap(result, 400, 400)
+                                                        }
+                                                        if (qrBitmap != null) {
+                                                            errorMessage = null
+                                                        }
+                                                    }
+                                                }
+                                            } catch (e: Exception) {
+                                                errorMessage = e.message
+                                            } finally {
+                                                isLoading = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFE50914)
+                                    )
+                                ) {
+                                    Text("Retry", color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                    qrBitmap != null -> {
+                        Image(
+                            bitmap = qrBitmap!!.asImageBitmap(),
+                            contentDescription = "Payment QR Code",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    hasLocalQr -> {
+                        Image(
+                            painter = painterResource(id = R.drawable.qr_code),
+                            contentDescription = "Payment QR Code",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = "QR CODE\nUNAVAILABLE",
+                            color = Color.Black,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // QR Code Info
         Text(
             text = "Scan QR Code to Pay",
             color = Color.White,
@@ -661,13 +522,13 @@ fun QRCodePaymentContent() {
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Amount
+        // Fixed Amount - No API call
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
+                .height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.White.copy(alpha = 0.1f)
@@ -676,7 +537,7 @@ fun QRCodePaymentContent() {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -686,32 +547,31 @@ fun QRCodePaymentContent() {
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "$199.99",
+                    text = "₹199.99",
                     color = Color.Green,
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Pay Button
-        Box(
+        Button(
+            onClick = {
+                android.widget.Toast.makeText(
+                    context,
+                    "Payment processing...",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color(0xFFFF6B6B),
-                            Color.Red
-                        )
-                    ),
-                    RoundedCornerShape(25.dp)
-                )
-                .clickable { },
-            contentAlignment = Alignment.Center
+                .height(52.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFE50914)
+            ),
+            shape = RoundedCornerShape(26.dp)
         ) {
             Text(
                 text = "Confirm Payment",
@@ -719,6 +579,107 @@ fun QRCodePaymentContent() {
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
+        }
+    }
+}
+
+// Function to convert SVG string to Bitmap
+private fun convertSvgToBitmap(svgString: String, width: Int, height: Int): Bitmap? {
+    return try {
+        val cleanSvg = svgString.trim()
+            .replace(Regex("^[\\uFEFF\\uFFFE\\u0000\\u0001\\u0002\\u0003]*"), "")
+
+        val svg = SVG.getFromString(cleanSvg)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        canvas.drawColor(android.graphics.Color.WHITE)
+
+        val svgWidth = svg.documentWidth
+        val svgHeight = svg.documentHeight
+
+        if (svgWidth > 0 && svgHeight > 0) {
+            val scaleX = width.toFloat() / svgWidth
+            val scaleY = height.toFloat() / svgHeight
+            val scale = minOf(scaleX, scaleY)
+
+            val dx = (width - svgWidth * scale) / 2
+            val dy = (height - svgHeight * scale) / 2
+
+            canvas.save()
+            canvas.translate(dx, dy)
+            canvas.scale(scale, scale)
+            svg.renderToCanvas(canvas)
+            canvas.restore()
+        } else {
+            svg.renderToCanvas(canvas)
+        }
+
+        bitmap
+    } catch (e: Exception) {
+        println("Error converting SVG to bitmap: ${e.message}")
+        null
+    }
+}
+
+// Function to fetch QR code from API - now with proper IO dispatcher
+private suspend fun fetchQRCodeFromApi(): String? {
+    return withContext(Dispatchers.IO) {
+        try {
+            println("=== Fetching QR Code from API ===")
+
+            val client = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url("https://iptv.yogayog.net/api/payment/qr")
+                .addHeader("Accept", "image/svg+xml,image/*,*/*")
+                .addHeader("User-Agent", "Android TV App")
+                .get()
+                .build()
+
+            println("Request URL: ${request.url}")
+
+            val response = client.newCall(request).execute()
+            val responseCode = response.code
+            println("Response Code: $responseCode")
+
+            val responseBody = response.body?.string()
+
+            if (response.isSuccessful && !responseBody.isNullOrEmpty()) {
+                val contentType = response.header("Content-Type")
+                println("Content-Type: $contentType")
+                println("Response Body Preview: ${responseBody.take(500)}")
+
+                when {
+                    contentType?.contains("svg") == true || responseBody.trim().startsWith("<svg") -> {
+                        println("✅ SVG format detected")
+                        return@withContext responseBody
+                    }
+                    contentType?.contains("json") == true -> {
+                        println("JSON format detected")
+                        val json = JSONObject(responseBody)
+                        val qrData = json.optString("qr_url", null)
+                            ?: json.optString("qr_code", null)
+                            ?: json.optString("data", null)
+                            ?: json.optString("image", null)
+                        return@withContext qrData
+                    }
+                    else -> {
+                        println("❌ Unknown format")
+                        return@withContext null
+                    }
+                }
+            } else {
+                println("❌ API call failed with code: $responseCode")
+                return@withContext null
+            }
+        } catch (e: Exception) {
+            println("❌ Exception in fetchQRCodeFromApi: ${e.message}")
+            e.printStackTrace()
+            return@withContext null
         }
     }
 }

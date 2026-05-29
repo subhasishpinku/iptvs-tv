@@ -17,5 +17,6 @@ data class TvChannel(
     val logoUrl: String,
     val streamUrl: String,
     val category: String,
-    val localNumber: String = ""  // Added local_number field with default empty string
+    val localNumber: String = "",
+    val language: String = ""  // Added language field
 ) : Parcelable

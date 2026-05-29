@@ -13,8 +13,10 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -63,6 +66,7 @@ class TvAutoPlayer : ComponentActivity() {
         const val EXTRA_CHANNEL_STREAM_URL = "streamUrl"
         const val EXTRA_CHANNEL_CATEGORY = "category"
         const val EXTRA_CHANNEL_LOCAL_NUMBER = "localNumber"
+        const val EXTRA_CHANNEL_LANGUAGE = "language"  // ADD THIS
         const val EXTRA_CHANNEL_LIST = "channel_list"
         const val EXTRA_CURRENT_INDEX = "current_index"
         const val EXTRA_GENRE_NAME = "genre_name"
@@ -96,7 +100,8 @@ class TvAutoPlayer : ComponentActivity() {
             logoUrl = intent.getStringExtra(EXTRA_CHANNEL_LOGO_URL) ?: "",
             streamUrl = intent.getStringExtra(EXTRA_CHANNEL_STREAM_URL) ?: "",
             category = intent.getStringExtra(EXTRA_CHANNEL_CATEGORY) ?: "Live TV",
-            localNumber = intent.getStringExtra(EXTRA_CHANNEL_LOCAL_NUMBER) ?: ""
+            localNumber = intent.getStringExtra(EXTRA_CHANNEL_LOCAL_NUMBER) ?: "",
+            language = intent.getStringExtra(EXTRA_CHANNEL_LANGUAGE) ?: ""  // ADD THIS
         )
 
         val channelsList = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -548,7 +553,7 @@ fun TvAutoPlayerScreen(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "LCM", color = Color.Red, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(text = "CH", color = Color.Red, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (currentChannel.localNumber.isNotEmpty()) currentChannel.localNumber else (currentIndex + 1).toString(),
@@ -632,7 +637,8 @@ fun TvAutoPlayerScreen(
         if (showGrid && filteredChannels.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f))) {
                 ChannelGrid(
-                    channels = filteredChannels,
+                    channels = allChannels,  // NEW: allChannels (সব চ্যানেল)
+                    initialCategory = selectedCategory,
                     onChannelSelected = { channel ->
                         val newIndex = allChannels.indexOf(channel)
                         if (newIndex != -1) {
@@ -723,75 +729,450 @@ fun TvAutoPlayerScreen(
         }
     }
 }
-
 @Composable
 fun ChannelGrid(
     channels: List<TvChannel>,
+    initialCategory: String? = null,
     onChannelSelected: (TvChannel) -> Unit,
     onClose: () -> Unit
 ) {
-    val gridState = rememberLazyGridState()
-    var focusedIndex by remember { mutableStateOf(0) }
-    val coroutineScope = rememberCoroutineScope()
-    val itemFocusRequesters = remember(channels.size) { List(channels.size) { FocusRequester() } }
+    // Extract unique categories from ALL channels
+    val categories = remember(channels) {
+        channels.map { it.category }.distinct().sorted()
+    }
 
-    LaunchedEffect(Unit) {
-        delay(200)
-        if (channels.isNotEmpty()) {
-            itemFocusRequesters[0].requestFocus()
-            focusedIndex = 0
+    // Extract unique languages from ALL channels
+    val languages = remember(channels) {
+        channels.mapNotNull { channel ->
+            if (channel.language.isNotEmpty()) channel.language
+            else extractLanguageFromChannel(channel)
+        }
+            .distinct()
+            .sorted()
+    }
+
+    // Determine default tab - Category first
+    val hasLanguages = languages.isNotEmpty()
+    val defaultTab = "Category"  // Changed: Default to Category
+    var selectedTab by remember { mutableStateOf(defaultTab) }
+
+    // Initialize selected category (first priority)
+    var selectedCategory by remember(initialCategory, categories) {
+        mutableStateOf(
+            if (initialCategory != null && categories.contains(initialCategory))
+                initialCategory
+            else
+                categories.firstOrNull() ?: ""
+        )
+    }
+
+    // Initialize selected language
+    var selectedLanguage by remember(initialCategory, languages) {
+        mutableStateOf(
+            if (languages.isNotEmpty()) languages.first() else ""
+        )
+    }
+
+    // Filter channels based on selected tab and selection
+    val filteredChannels = remember(selectedTab, selectedLanguage, selectedCategory, channels) {
+        when (selectedTab) {
+            "Language" -> {
+                if (selectedLanguage.isEmpty()) {
+                    channels
+                } else {
+                    channels.filter {
+                        it.language == selectedLanguage ||
+                                extractLanguageFromChannel(it) == selectedLanguage
+                    }
+                }
+            }
+            else -> {  // Category tab
+                if (selectedCategory.isEmpty()) {
+                    channels
+                } else {
+                    channels.filter { it.category == selectedCategory }
+                }
+            }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "${channels.firstOrNull()?.category ?: "Channel"} Channels", color = Color.Red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+    // Get current list for left panel
+    val currentList = if (selectedTab == "Language") languages else categories
+    val currentSelected = if (selectedTab == "Language") selectedLanguage else selectedCategory
+
+    val gridState = rememberLazyGridState()
+    var focusedIndex by remember { mutableStateOf(0) }
+    var focusedTabIndex by remember { mutableStateOf(0) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Grid item focus requesters
+    val itemFocusRequesters = remember(filteredChannels.size) {
+        List(filteredChannels.size) { FocusRequester() }
+    }
+
+    // List item focus requesters (Languages or Categories)
+    val listItemFocusRequesters = remember(currentList.size) {
+        List(currentList.size) { FocusRequester() }
+    }
+
+    // Tab focus requesters - Category first, then Language
+    val tabFocusRequesters = remember { listOf(FocusRequester(), FocusRequester()) }
+
+    // Auto focus first tab (Category) on load
+    LaunchedEffect(Unit) {
+        delay(200)
+        if (tabFocusRequesters.isNotEmpty()) {
+            tabFocusRequesters[0].requestFocus()
+        }
+    }
+
+    // Auto focus grid when filtered channels change
+    LaunchedEffect(filteredChannels, selectedTab) {
+        delay(100)
+        if (filteredChannels.isNotEmpty()) {
+            focusedIndex = 0
+            itemFocusRequesters.getOrNull(0)?.requestFocus()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.92f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            // ===================================
+            // LEFT SIDE PANEL (Category/Language)
+            // ===================================
+            Column(
+                modifier = Modifier
+                    .width(260.dp)
+                    .fillMaxHeight()
+                    .background(
+                        Color(0xFF111111),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                // ===================================
+                // TAB ROW (Category | Language)
+                // ===================================
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF222222), RoundedCornerShape(12.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Category Tab (First - Index 0)
+                    var isCategoryTabFocused by remember { mutableStateOf(false) }
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(tabFocusRequesters[0])
+                            .onFocusChanged {
+                                isCategoryTabFocused = it.isFocused
+                                if (it.isFocused) {
+                                    focusedTabIndex = 0
+                                    selectedTab = "Category"
+                                    focusedIndex = 0
+                                }
+                            }
+                            .focusable()
+                            .then(
+                                if (isCategoryTabFocused || selectedTab == "Category")
+                                    Modifier.border(2.dp, Color.Red, RoundedCornerShape(8.dp))
+                                else Modifier
+                            ),
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (selectedTab == "Category") Color.Red else Color.DarkGray
+                    ) {
+                        Text(
+                            text = "Category",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp)
+                        )
+                    }
+
+                    // Language Tab (Second - Index 1) - only show if languages exist
+                    if (hasLanguages) {
+                        var isLanguageTabFocused by remember { mutableStateOf(false) }
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(tabFocusRequesters[1])
+                                .onFocusChanged {
+                                    isLanguageTabFocused = it.isFocused
+                                    if (it.isFocused) {
+                                        focusedTabIndex = 1
+                                        selectedTab = "Language"
+                                        focusedIndex = 0
+                                    }
+                                }
+                                .focusable()
+                                .then(
+                                    if (isLanguageTabFocused || selectedTab == "Language")
+                                        Modifier.border(2.dp, Color.Red, RoundedCornerShape(8.dp))
+                                    else Modifier
+                                ),
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selectedTab == "Language") Color.Red else Color.DarkGray
+                        ) {
+                            Text(
+                                text = "Language",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp)
+                            )
+                        }
+                    }
+                }
+
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                // Header with count
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Text(
+//                        text = if (selectedTab == "Language") "Languages" else "Categories",
+//                        color = Color.Red,
+//                        fontSize = 18.sp,
+//                        fontWeight = FontWeight.Bold
+//                    )
+//                    Text(
+//                        text = "${currentList.size}",
+//                        color = Color.Gray,
+//                        fontSize = 14.sp,
+//                        modifier = Modifier
+//                            .background(Color(0xFF222222), RoundedCornerShape(8.dp))
+//                            .padding(horizontal = 8.dp, vertical = 4.dp)
+//                    )
+//                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Scrollable list of Categories or Languages
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(currentList) { listIndex, item ->
+                        val isSelected = currentSelected == item
+                        var isFocused by remember { mutableStateOf(false) }
+                        val channelCount = if (selectedTab == "Language") {
+                            channels.count {
+                                it.language == item || extractLanguageFromChannel(it) == item
+                            }
+                        } else {
+                            channels.count { it.category == item }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(listItemFocusRequesters[listIndex])
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .focusable()
+                                .clickable {
+                                    if (selectedTab == "Language") {
+                                        selectedLanguage = item
+                                    } else {
+                                        selectedCategory = item
+                                    }
+                                    focusedIndex = 0
+                                    coroutineScope.launch {
+                                        delay(100)
+                                        if (filteredChannels.isNotEmpty()) {
+                                            itemFocusRequesters.getOrNull(0)?.requestFocus()
+                                        }
+                                    }
+                                }
+                                .then(
+                                    if (isFocused)
+                                        Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                                    else Modifier
+                                ),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color.Red else Color(0xFF1A1A1A)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = item,
+                                    color = if (isSelected || isFocused) Color.White else Color.White.copy(alpha = 0.8f),
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "$channelCount",
+                                    color = if (isSelected) Color.White else Color.Gray,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Close Button
                 var isCloseFocused by remember { mutableStateOf(false) }
-                Button(onClick = onClose, modifier = Modifier.size(40.dp).focusable().onFocusChanged { isCloseFocused = it.isFocused }
-                    .then(if (isCloseFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isCloseFocused) Color.Red else Color.DarkGray), shape = RoundedCornerShape(8.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(24.dp))
+
+                Button(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusable()
+                        .onFocusChanged { isCloseFocused = it.isFocused }
+                        .then(
+                            if (isCloseFocused)
+                                Modifier.border(2.dp, Color.White, RoundedCornerShape(12.dp))
+                            else Modifier
+                        ),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isCloseFocused) Color.Red else Color.DarkGray
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Close", color = Color.White)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.width(20.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(5),
-                state = gridState,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                itemsIndexed(channels) { index, channel ->
-                    val isFocused = index == focusedIndex
-                    Card(
-                        modifier = Modifier.fillMaxWidth().height(120.dp).focusRequester(itemFocusRequesters[index])
-                            .onFocusChanged { if (it.isFocused) { focusedIndex = index; coroutineScope.launch { gridState.animateScrollToItem(index) } } }
-                            .focusable().clickable { onChannelSelected(channel) }
-                            .then(if (isFocused) Modifier.border(3.dp, Color.Red, RoundedCornerShape(12.dp)) else Modifier),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize().padding(8.dp)) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current).data(channel.logoUrl).crossfade(true).error(R.drawable.logoss).build(),
-                                contentDescription = channel.name,
-                                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).background(Color.DarkGray),
-                                contentScale = ContentScale.Fit
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = channel.name.take(15),
-                                color = if (isFocused) Color.Red else Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 2, minLines = 2, textAlign = TextAlign.Center
-                            )
-                            if (channel.localNumber.isNotEmpty()) {
-                                Text(text = "LCM ${channel.localNumber}", color = Color.Gray, fontSize = 9.sp, maxLines = 1)
+            // ===================================
+            // RIGHT SIDE CHANNEL GRID
+            // ===================================
+            Column(modifier = Modifier.weight(1f)) {
+                // Header with channel count
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (selectedTab == "Language") "$selectedLanguage Channels" else "$selectedCategory Channels",
+                        color = Color.Red,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${filteredChannels.size} channels",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(6),
+                    state = gridState,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    itemsIndexed(filteredChannels) { index, channel ->
+                        val isFocused = index == focusedIndex
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .focusRequester(itemFocusRequesters[index])
+                                .onFocusChanged {
+                                    if (it.isFocused) {
+                                        focusedIndex = index
+                                        coroutineScope.launch {
+                                            gridState.animateScrollToItem(index)
+                                        }
+                                    }
+                                }
+                                .focusable()
+                                .clickable { onChannelSelected(channel) }
+                                .then(
+                                    if (isFocused)
+                                        Modifier.border(3.dp, Color.Red, RoundedCornerShape(12.dp))
+                                    else Modifier
+                                ),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp)
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(channel.logoUrl)
+                                        .crossfade(true)
+                                        .error(R.drawable.logoss)
+                                        .build(),
+                                    contentDescription = channel.name,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.DarkGray),
+                                    contentScale = ContentScale.Fit
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    text = channel.name.take(15),
+                                    color = if (isFocused) Color.Red else Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 2,
+                                    minLines = 2,
+                                    textAlign = TextAlign.Center
+                                )
+
+                                if (channel.localNumber.isNotEmpty()) {
+                                    Text(
+                                        text = "CH ${channel.localNumber}",
+                                        color = Color.Gray,
+                                        fontSize = 9.sp,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -799,7 +1180,7 @@ fun ChannelGrid(
             }
         }
 
-        // Hint text at bottom
+        // Bottom Hint Text
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -807,7 +1188,8 @@ fun ChannelGrid(
                 .padding(bottom = 30.dp)
         ) {
             Text(
-                text = "▲ ▼ ◀ ▶ to navigate | OK to select | BACK to close",
+                text = if (hasLanguages) "◀ ▶ to switch tabs (Category | Language) | ▲ ▼ to navigate list | OK to select channel | BACK to close"
+                else "▲ ▼ to navigate categories | OK to select channel | BACK to close",
                 color = Color.White.copy(alpha = 0.6f),
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
@@ -816,3 +1198,548 @@ fun ChannelGrid(
         }
     }
 }
+
+// Helper function to extract language from channel name or category
+private fun extractLanguageFromChannel(channel: TvChannel): String {
+    return when {
+        channel.name.contains("Bangla", ignoreCase = true) ||
+                channel.category.contains("Bengali", ignoreCase = true) ||
+                channel.name.contains("ANANDA", ignoreCase = true) -> "Bengali"
+
+        channel.name.contains("Bhojpuri", ignoreCase = true) ||
+                channel.category.contains("Bhojpuri", ignoreCase = true) -> "Bhojpuri"
+
+        channel.name.contains("Punjabi", ignoreCase = true) ||
+                channel.category.contains("Punjabi", ignoreCase = true) -> "Punjabi"
+
+        channel.category.contains("Hindi", ignoreCase = true) ||
+                channel.name.contains("Hindi", ignoreCase = true) ||
+                channel.name.contains("News", ignoreCase = true) ||
+                channel.name.contains("Music", ignoreCase = true) -> "Hindi"
+
+        channel.category.contains("English", ignoreCase = true) ||
+                channel.name.contains("BBC", ignoreCase = true) -> "English"
+
+        else -> "Other"
+    }
+}
+//@Composable
+//fun ChannelGrid(
+//    channels: List<TvChannel>,
+//    onChannelSelected: (TvChannel) -> Unit,
+//    onClose: () -> Unit
+//) {
+//
+//    val categories = remember(channels) {
+//        channels.map { it.category }.distinct()
+//    }
+//
+//    var selectedCategory by remember {
+//        mutableStateOf(categories.firstOrNull() ?: "")
+//    }
+//
+//    val filteredChannels = remember(selectedCategory, channels) {
+//        channels.filter {
+//            it.category == selectedCategory
+//        }
+//    }
+//
+//    val gridState = rememberLazyGridState()
+//
+//    var focusedIndex by remember {
+//        mutableStateOf(0)
+//    }
+//
+//    val coroutineScope = rememberCoroutineScope()
+//
+//    // GRID ITEM FOCUS
+//
+//    val itemFocusRequesters = remember(filteredChannels.size) {
+//        List(filteredChannels.size) {
+//            FocusRequester()
+//        }
+//    }
+//
+//    // CATEGORY FOCUS
+//
+//    val categoryFocusRequesters = remember(categories.size) {
+//        List(categories.size) {
+//            FocusRequester()
+//        }
+//    }
+//
+//    // AUTO FOCUS CATEGORY
+//
+//    LaunchedEffect(Unit) {
+//
+//        delay(200)
+//
+//        if (categories.isNotEmpty()) {
+//            categoryFocusRequesters[0].requestFocus()
+//        }
+//    }
+//
+//    // AUTO FOCUS GRID
+//
+//    LaunchedEffect(filteredChannels) {
+//
+//        delay(100)
+//
+//        if (filteredChannels.isNotEmpty()) {
+//
+//            focusedIndex = 0
+//
+//            itemFocusRequesters[0].requestFocus()
+//        }
+//    }
+//
+//    Box(
+//        modifier = Modifier
+//            .fillMaxSize()
+//            .background(Color.Black.copy(alpha = 0.92f))
+//    ) {
+//
+//        Row(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .padding(16.dp)
+//        ) {
+//
+//            // ===================================
+//            // LEFT SIDE CATEGORY PANEL
+//            // ===================================
+//
+//            Column(
+//                modifier = Modifier
+//                    .width(220.dp)
+//                    .fillMaxHeight()
+//                    .background(
+//                        Color(0xFF111111),
+//                        RoundedCornerShape(16.dp)
+//                    )
+//                    .padding(12.dp)
+//            ) {
+//
+//                Text(
+//                    text = "Languages",
+//                    color = Color.Red,
+//                    fontSize = 20.sp,
+//                    fontWeight = FontWeight.Bold
+//                )
+//
+//                Spacer(modifier = Modifier.height(20.dp))
+//
+//                categories.forEachIndexed { catIndex, category ->
+//
+//                    val isSelected = selectedCategory == category
+//
+//                    var isFocused by remember {
+//                        mutableStateOf(false)
+//                    }
+//
+//                    Surface(
+//
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .padding(vertical = 4.dp)
+//
+//                            .focusRequester(
+//                                categoryFocusRequesters[catIndex]
+//                            )
+//
+//                            .onFocusChanged {
+//                                isFocused = it.isFocused
+//                            }
+//
+//                            .focusable()
+//
+//                            .clickable {
+//
+//                                selectedCategory = category
+//
+//                                focusedIndex = 0
+//
+//                                coroutineScope.launch {
+//
+//                                    delay(100)
+//
+//                                    if (filteredChannels.isNotEmpty()) {
+//                                        itemFocusRequesters[0].requestFocus()
+//                                    }
+//                                }
+//                            }
+//
+//                            .then(
+//                                if (isFocused)
+//                                    Modifier.border(
+//                                        2.dp,
+//                                        Color.White,
+//                                        RoundedCornerShape(12.dp)
+//                                    )
+//                                else Modifier
+//                            ),
+//
+//                        shape = RoundedCornerShape(12.dp),
+//
+//                        color =
+//                            if (isSelected)
+//                                Color.Red
+//                            else
+//                                Color.DarkGray
+//                    ) {
+//
+//                        Text(
+//                            text = category,
+//
+//                            color = Color.White,
+//
+//                            fontSize = 14.sp,
+//
+//                            fontWeight = FontWeight.Bold,
+//
+//                            modifier = Modifier.padding(
+//                                horizontal = 16.dp,
+//                                vertical = 14.dp
+//                            )
+//                        )
+//                    }
+//                }
+//
+//                Spacer(modifier = Modifier.weight(1f))
+//
+//                // ===================================
+//                // CLOSE BUTTON
+//                // ===================================
+//
+//                var isCloseFocused by remember {
+//                    mutableStateOf(false)
+//                }
+//
+//                Button(
+//
+//                    onClick = onClose,
+//
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//
+//                        .focusable()
+//
+//                        .onFocusChanged {
+//                            isCloseFocused = it.isFocused
+//                        }
+//
+//                        .then(
+//                            if (isCloseFocused)
+//                                Modifier.border(
+//                                    2.dp,
+//                                    Color.White,
+//                                    RoundedCornerShape(12.dp)
+//                                )
+//                            else Modifier
+//                        ),
+//
+//                    colors = ButtonDefaults.buttonColors(
+//                        containerColor =
+//                            if (isCloseFocused)
+//                                Color.Red
+//                            else
+//                                Color.DarkGray
+//                    ),
+//
+//                    shape = RoundedCornerShape(12.dp)
+//                ) {
+//
+//                    Icon(
+//                        Icons.Default.Close,
+//                        contentDescription = "Close",
+//                        tint = Color.White
+//                    )
+//
+//                    Spacer(modifier = Modifier.width(8.dp))
+//
+//                    Text(
+//                        text = "Close",
+//                        color = Color.White
+//                    )
+//                }
+//            }
+//
+//            Spacer(modifier = Modifier.width(20.dp))
+//
+//            // ===================================
+//            // RIGHT SIDE CHANNEL GRID
+//            // ===================================
+//
+//            Column(
+//                modifier = Modifier.weight(1f)
+//            ) {
+//
+//                Text(
+//                    text = "$selectedCategory Channels",
+//                    color = Color.Red,
+//                    fontSize = 18.sp,
+//                    fontWeight = FontWeight.Bold
+//                )
+//
+//                Spacer(modifier = Modifier.height(16.dp))
+//
+//                LazyVerticalGrid(
+//
+//                    columns = GridCells.Fixed(6),
+//
+//                    state = gridState,
+//
+//                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+//
+//                    verticalArrangement = Arrangement.spacedBy(12.dp),
+//
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .weight(1f)
+//
+//                ) {
+//
+//                    itemsIndexed(filteredChannels) { index, channel ->
+//
+//                        val isFocused = index == focusedIndex
+//
+//                        Card(
+//
+//                            modifier = Modifier
+//                                .fillMaxWidth()
+//                                .height(120.dp)
+//
+//                                .focusRequester(
+//                                    itemFocusRequesters[index]
+//                                )
+//
+//                                .onFocusChanged {
+//
+//                                    if (it.isFocused) {
+//
+//                                        focusedIndex = index
+//
+//                                        coroutineScope.launch {
+//                                            gridState.animateScrollToItem(index)
+//                                        }
+//                                    }
+//                                }
+//
+//                                .focusable()
+//
+//                                .clickable {
+//                                    onChannelSelected(channel)
+//                                }
+//
+//                                .then(
+//                                    if (isFocused)
+//                                        Modifier.border(
+//                                            3.dp,
+//                                            Color.Red,
+//                                            RoundedCornerShape(12.dp)
+//                                        )
+//                                    else Modifier
+//                                ),
+//
+//                            colors = CardDefaults.cardColors(
+//                                containerColor = Color(0xFF1A1A1A)
+//                            ),
+//
+//                            shape = RoundedCornerShape(12.dp),
+//
+//                            elevation = CardDefaults.cardElevation(
+//                                defaultElevation = 4.dp
+//                            )
+//                        ) {
+//
+//                            Column(
+//                                horizontalAlignment = Alignment.CenterHorizontally,
+//
+//                                modifier = Modifier
+//                                    .fillMaxSize()
+//                                    .padding(8.dp)
+//                            ) {
+//
+//                                AsyncImage(
+//
+//                                    model = ImageRequest.Builder(
+//                                        LocalContext.current
+//                                    )
+//                                        .data(channel.logoUrl)
+//                                        .crossfade(true)
+//                                        .error(R.drawable.logoss)
+//                                        .build(),
+//
+//                                    contentDescription = channel.name,
+//
+//                                    modifier = Modifier
+//                                        .size(60.dp)
+//                                        .clip(RoundedCornerShape(8.dp))
+//                                        .background(Color.DarkGray),
+//
+//                                    contentScale = ContentScale.Fit
+//                                )
+//
+//                                Spacer(modifier = Modifier.height(8.dp))
+//
+//                                Text(
+//
+//                                    text = channel.name.take(15),
+//
+//                                    color =
+//                                        if (isFocused)
+//                                            Color.Red
+//                                        else
+//                                            Color.White,
+//
+//                                    fontSize = 11.sp,
+//
+//                                    fontWeight =
+//                                        if (isFocused)
+//                                            FontWeight.Bold
+//                                        else
+//                                            FontWeight.Normal,
+//
+//                                    maxLines = 2,
+//
+//                                    minLines = 2,
+//
+//                                    textAlign = TextAlign.Center
+//                                )
+//
+//                                if (channel.localNumber.isNotEmpty()) {
+//
+//                                    Text(
+//                                        text = "LCM ${channel.localNumber}",
+//
+//                                        color = Color.Gray,
+//
+//                                        fontSize = 9.sp,
+//
+//                                        maxLines = 1
+//                                    )
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        // ===================================
+//        // BOTTOM HINT TEXT
+//        // ===================================
+//
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .align(Alignment.BottomCenter)
+//                .padding(bottom = 30.dp)
+//        ) {
+//
+//            Text(
+//                text = "▲ ▼ ◀ ▶ to navigate | OK to select | BACK to close",
+//
+//                color = Color.White.copy(alpha = 0.6f),
+//
+//                fontSize = 12.sp,
+//
+//                textAlign = TextAlign.Center,
+//
+//                modifier = Modifier.fillMaxWidth()
+//            )
+//        }
+//    }
+//}
+//@Composable
+//fun ChannelGrid(
+//    channels: List<TvChannel>,
+//    onChannelSelected: (TvChannel) -> Unit,
+//    onClose: () -> Unit
+//) {
+//    val gridState = rememberLazyGridState()
+//    var focusedIndex by remember { mutableStateOf(0) }
+//    val coroutineScope = rememberCoroutineScope()
+//    val itemFocusRequesters = remember(channels.size) { List(channels.size) { FocusRequester() } }
+//
+//    LaunchedEffect(Unit) {
+//        delay(200)
+//        if (channels.isNotEmpty()) {
+//            itemFocusRequesters[0].requestFocus()
+//            focusedIndex = 0
+//        }
+//    }
+//
+//    Box(modifier = Modifier.fillMaxSize()) {
+//        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+//            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+//                Text(text = "${channels.firstOrNull()?.category ?: "Channel"} Channels", color = Color.Red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+//                var isCloseFocused by remember { mutableStateOf(false) }
+//                Button(onClick = onClose, modifier = Modifier.size(40.dp).focusable().onFocusChanged { isCloseFocused = it.isFocused }
+//                    .then(if (isCloseFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier),
+//                    colors = ButtonDefaults.buttonColors(containerColor = if (isCloseFocused) Color.Red else Color.DarkGray), shape = RoundedCornerShape(8.dp)) {
+//                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(24.dp))
+//                }
+//            }
+//
+//            Spacer(modifier = Modifier.height(16.dp))
+//
+//            LazyVerticalGrid(
+//                columns = GridCells.Fixed(8),
+//                state = gridState,
+//                horizontalArrangement = Arrangement.spacedBy(12.dp),
+//                verticalArrangement = Arrangement.spacedBy(12.dp),
+//                modifier = Modifier.fillMaxWidth().weight(1f)
+//            ) {
+//                itemsIndexed(channels) { index, channel ->
+//                    val isFocused = index == focusedIndex
+//                    Card(
+//                        modifier = Modifier.fillMaxWidth().height(120.dp).focusRequester(itemFocusRequesters[index])
+//                            .onFocusChanged { if (it.isFocused) { focusedIndex = index; coroutineScope.launch { gridState.animateScrollToItem(index) } } }
+//                            .focusable().clickable { onChannelSelected(channel) }
+//                            .then(if (isFocused) Modifier.border(3.dp, Color.Red, RoundedCornerShape(12.dp)) else Modifier),
+//                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+//                        shape = RoundedCornerShape(12.dp),
+//                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+//                    ) {
+//                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize().padding(8.dp)) {
+//                            AsyncImage(
+//                                model = ImageRequest.Builder(LocalContext.current).data(channel.logoUrl).crossfade(true).error(R.drawable.logoss).build(),
+//                                contentDescription = channel.name,
+//                                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).background(Color.DarkGray),
+//                                contentScale = ContentScale.Fit
+//                            )
+//                            Spacer(modifier = Modifier.height(8.dp))
+//                            Text(
+//                                text = channel.name.take(15),
+//                                color = if (isFocused) Color.Red else Color.White,
+//                                fontSize = 11.sp,
+//                                fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Normal,
+//                                maxLines = 2, minLines = 2, textAlign = TextAlign.Center
+//                            )
+//                            if (channel.localNumber.isNotEmpty()) {
+//                                Text(text = "LCM ${channel.localNumber}", color = Color.Gray, fontSize = 9.sp, maxLines = 1)
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        // Hint text at bottom
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .align(Alignment.BottomCenter)
+//                .padding(bottom = 30.dp)
+//        ) {
+//            Text(
+//                text = "▲ ▼ ◀ ▶ to navigate | OK to select | BACK to close",
+//                color = Color.White.copy(alpha = 0.6f),
+//                fontSize = 12.sp,
+//                textAlign = TextAlign.Center,
+//                modifier = Modifier.fillMaxWidth()
+//            )
+//        }
+//    }
+//}

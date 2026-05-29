@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -50,7 +51,6 @@ import com.bacbpl.iptv.jetStram.data.entities.OttWidget
 import com.bacbpl.iptv.jetStram.data.entities.OttWidgetItem
 import com.bacbpl.iptv.jetStram.presentation.screens.dashboard.rememberChildPadding
 
-
 @Composable
 fun OttWidgetRow(
     widget: OttWidget,
@@ -58,32 +58,31 @@ fun OttWidgetRow(
     modifier: Modifier = Modifier
 ) {
     val childPadding = rememberChildPadding()
-
     val listState = rememberLazyListState()
     val firstItemFocusRequester = remember { FocusRequester() }
 
     Column(modifier = modifier) {
-
         Text(
             text = widget.name,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                color = Color.White
+            ),
             modifier = Modifier.padding(
                 start = childPadding.start,
-                top = 16.dp,
-                bottom = 12.dp
+                top = 8.dp,      // Reduced from 16dp to 8dp
+                bottom = 6.dp    // Reduced from 12dp to 6dp
             )
         )
 
         LazyRow(
             state = listState,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),  // Reduced from 12dp to 8dp
             contentPadding = PaddingValues(
                 start = childPadding.start,
                 end = childPadding.end
             )
         ) {
             itemsIndexed(widget.items) { index, item ->
-
                 OttWidgetItemCard(
                     item = item,
                     onClick = { onItemClick(item) },
@@ -94,14 +93,8 @@ fun OttWidgetRow(
             }
         }
     }
-
-//    // ✅ KEY FIX: wait until items are visible
-//    LaunchedEffect(listState.layoutInfo.visibleItemsInfo) {
-//        if (listState.layoutInfo.visibleItemsInfo.isNotEmpty()) {
-//            firstItemFocusRequester.requestFocus()
-//        }
-//    }
 }
+
 @Composable
 fun OttWidgetItemCard(
     item: OttWidgetItem,
@@ -110,23 +103,23 @@ fun OttWidgetItemCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (isFocused) 1.05f else 1f)
+
     LaunchedEffect(item.id) {
         android.util.Log.d("OttWidgetItemCard", "Item: ${item.title}, Poster URL: ${item.posterUrl}")
-        android.util.Log.d("OttWidgetItemCard", "Full item details: $item")
     }
 
     Card(
         modifier = modifier
-            .width(180.dp)
-            .aspectRatio(0.7f)
+            .width(140.dp)
+            .aspectRatio(0.65f)
             .scale(scale)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
                 color = Color.Red,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ),
-        shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)),
+        shape = CardDefaults.shape(shape = RoundedCornerShape(10.dp)),
         colors = CardDefaults.colors(
             containerColor = Color(0xFF1A1A1A),
             focusedContainerColor = Color(0xFF252525)
@@ -137,14 +130,14 @@ fun OttWidgetItemCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp)
+                .padding(6.dp)  // Reduced from 8dp to 6dp
         ) {
-            // Poster Image with top branding overlay
+            // Poster Image
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .height(100.dp)
+                    .clip(RoundedCornerShape(6.dp))
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -157,7 +150,6 @@ fun OttWidgetItemCard(
                     contentScale = ContentScale.Crop
                 )
 
-                // Top branding overlay (like "DC" and "WONDER" in the image)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -169,93 +161,78 @@ fun OttWidgetItemCard(
                                 )
                             )
                         )
-                        .padding(8.dp)
+                        .padding(4.dp)  // Reduced from 6dp to 4dp
                 ) {
-                    // First line of branding (e.g., "DC")
                     Text(
                         text = item.format.uppercase().take(3),
                         color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 12.sp,
+                        fontSize = 9.sp,  // Reduced from 10sp to 9sp
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
-
-                    // Second line of branding (e.g., "WONDER")
                     Text(
                         text = item.language.uppercase(),
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 10.sp,  // Reduced from 11sp to 10sp
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))  // Reduced from 6dp to 4dp
 
-            // Movie Title (like "Wonder Woman")
+            // Movie Title
             Text(
                 text = item.title,
                 color = if (isFocused) Color.Red else Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
+                fontSize = 12.sp,  // Reduced from 13sp to 12sp
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(3.dp))  // Reduced from 4dp to 3dp
 
-            // Info Row with Length, Language, Rating, Reviews
+            // Info Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),  // Reduced from 4dp to 3dp
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Length
-                InfoBadge(
-                    label = "Length",
+                InfoBadgeSmall(
+                    label = "Year",
                     value = "${item.releaseYear}".take(4)
                 )
-
-                // Language
-                InfoBadge(
+                InfoBadgeSmall(
                     label = "Lang",
-                    value = item.language.take(3)
+                    value = item.language.take(2)
                 )
-
-                // Rating
-                InfoBadge(
-                    label = "Rating",
+                InfoBadgeSmall(
+                    label = "⭐",
                     value = if (item.rating > 0) String.format("%.1f", item.rating) else "NR"
-                )
-
-                // Reviews
-                InfoBadge(
-                    label = "Review",
-                    value = "${(item.rating * 7).toInt()}+" // Simulated review count
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             // Provider/Genre info
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = item.ottProvider.ifEmpty { "Unknown" },
                     color = Color(0xFFFFA500),
-                    fontSize = 11.sp,
+                    fontSize = 8.sp,  // Reduced from 9sp to 8sp
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
-
                 Text(
-                    text = item.genre.split(",").firstOrNull()?.trim() ?: "",
+                    text = item.genre.split(",").firstOrNull()?.trim()?.take(10) ?: "",
                     color = Color.Gray,
-                    fontSize = 11.sp,
+                    fontSize = 8.sp,  // Reduced from 9sp to 8sp
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
@@ -265,7 +242,7 @@ fun OttWidgetItemCard(
 }
 
 @Composable
-fun InfoBadge(
+fun InfoBadgeSmall(
     label: String,
     value: String,
     modifier: Modifier = Modifier
@@ -277,13 +254,13 @@ fun InfoBadge(
         Text(
             text = label,
             color = Color.Gray,
-            fontSize = 9.sp,
+            fontSize = 7.sp,  // Reduced from 8sp to 7sp
             maxLines = 1
         )
         Text(
             text = value,
             color = Color.White,
-            fontSize = 11.sp,
+            fontSize = 9.sp,  // Reduced from 10sp to 9sp
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )

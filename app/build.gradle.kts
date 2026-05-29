@@ -25,8 +25,8 @@ android {
         applicationId = "com.bacbpl.iptv"
         minSdk = 23
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.1.5"
+        versionCode = 26
+        versionName = "1.1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "PARTNER_API_URL", "\"https://partner.app.com\"")
         multiDexEnabled = true
@@ -222,7 +222,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-viewbinding:1.6.0")
     implementation("androidx.multidex:multidex:2.0.1")
     implementation("androidx.navigation:navigation-compose:2.7.7")
-
+    implementation("com.caverock:androidsvg:1.4")
 //    baselineProfile(project(":benchmark"))
 }
 

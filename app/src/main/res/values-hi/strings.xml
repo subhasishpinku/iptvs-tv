@@ -213,4 +213,26 @@ support@bacbpl.in</string>
     <string name="send_message">संदेश भेजें</string>
     <string name="profile_dashboard">Dashboard</string>
 
+    <string name="menu_live">लाइव टीवी</string>
+    <string name="menu_ott">ओटीटी</string>
+    <string name="menu_genre">शैली</string>
+    <string name="menu_accounts">खाते</string>
+    <string name="menu_payment">भुगतान</string>
+    <string name="menu_settings">सेटिंग्स</string>
+    <string name="menu_help_support">सहायता और समर्थन</string>
+    <string name="menu_logout">लॉगआउट</string>
+
+    <!-- Screen Titles - Hindi -->
+    <string name="screen_live">लाइव टीवी</string>
+    <string name="screen_ott">ओटीटी</string>
+    <string name="screen_genre">शैली</string>
+    <string name="screen_accounts">खाते</string>
+    <string name="screen_wallet">भुगतान</string>
+    <string name="screen_help_support">सहायता और समर्थन</string>
+
+    <!-- Help & Support Section -->
+    <string name="help_about_us">हमारे बारे में</string>
+    <string name="help_device_info">डिवाइस जानकारी</string>
+    <string name="help_language">भाषा</string>
+    <string name="help_faq">सामान्य प्रश्न</string>
 </resources>

@@ -14,7 +14,6 @@ import com.bacbpl.iptv.jetStram.data.entities.Movie
 import com.bacbpl.iptv.jetStram.data.entities.TvChannel
 import com.bacbpl.iptv.jetStram.presentation.screens.home.TvChannelViewModel
 import com.bacbpl.iptv.jetStram.presentation.screens.player.TvAutoPlayer
-import com.bacbpl.iptv.jetStram.presentation.screens.player.TvPlayer
 
 @Composable
 fun ShowsAutoScreen(
@@ -37,28 +36,34 @@ fun ShowsAutoScreen(
             val intent = Intent(context, TvAutoPlayer::class.java).apply {
                 // Get first channel as initial
                 val firstChannel = channels[0]
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_ID, firstChannel.id ?: 0)
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_NAME, firstChannel.name ?: "")
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LOGO_URL, firstChannel.logoUrl ?: "")
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_STREAM_URL, firstChannel.streamUrl ?: "")
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_CATEGORY, firstChannel.category ?: "Live TV")
-                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LOCAL_NUMBER, firstChannel.localNumber ?: "")  // Added
-                putExtra(TvAutoPlayer.EXTRA_GENRE_NAME, "")  // Send genreName
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_ID, firstChannel.id)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_NAME, firstChannel.name)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LOGO_URL, firstChannel.logoUrl)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_STREAM_URL, firstChannel.streamUrl)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_CATEGORY, firstChannel.category)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LOCAL_NUMBER, firstChannel.localNumber)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LANGUAGE, firstChannel.language)
+                putExtra(TvAutoPlayer.EXTRA_GENRE_NAME, "")
 
-                // Convert all channels
-                val channelsList = ArrayList(channels.map { movie ->
-                    TvChannel(
-                        id = movie.id ?: 0,
-                        name = movie.name ?: "",
-                        logoUrl = movie.logoUrl ?: "",
-                        streamUrl = movie.streamUrl ?: "",
-                        category = movie.category ?: "Live TV",
-                        localNumber = movie.localNumber ?: ""  // Added
-                    )
-                })
+                // SAFE CONVERSION with null handling
+                val channelsList = ArrayList<TvChannel>().apply {
+                    channels.forEach { channel ->
+                        add(
+                            TvChannel(
+                                id = channel.id,
+                                name = channel.name,
+                                logoUrl = channel.logoUrl,
+                                streamUrl = channel.streamUrl,
+                                category = channel.category,
+                                localNumber = channel.localNumber,
+                                language = channel.language
+                            )
+                        )
+                    }
+                }
 
-                putExtra(TvPlayer.EXTRA_CHANNEL_LIST, channelsList)
-                putExtra(TvPlayer.EXTRA_CURRENT_INDEX, 0)
+                putExtra(TvAutoPlayer.EXTRA_CHANNEL_LIST, channelsList)
+                putExtra(TvAutoPlayer.EXTRA_CURRENT_INDEX, 0)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
 

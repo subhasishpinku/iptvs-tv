@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
@@ -59,7 +60,10 @@ fun MovieReviews(
             .padding(horizontal = childPadding.start)
             .padding(bottom = childPadding.bottom)
     ) {
-        Text(text = stringResource(R.string.reviews), style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = stringResource(R.string.reviews),
+            style = MaterialTheme.typography.titleMedium.copy(color = Color.White)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -77,7 +81,6 @@ fun MovieReviews(
         }
     }
 }
-
 @Composable
 private fun Review(
     reviewAndRating: MovieReviewsAndRatings,
